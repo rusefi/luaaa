@@ -54,7 +54,7 @@ namespace LUAAA_NS
 	{
 		inline static T& get(lua_State * state, int idx)
 		{
-			luaL_argcheck(state, !LuaClass<T>::klassName.empty(), 1, (std::string("cpp class `") + typeid(T).name() + "` not export").c_str());
+			luaL_argcheck(state, !LuaClass<T>::klassName.empty(), 1, (std::string("cpp class `") /*+ typeid(T).name()*/ + "` not export").c_str());
 			T ** t = (T**)luaL_checkudata(state, idx, LuaClass<T>::klassName.c_str());
 			luaL_argcheck(state, t != NULL, 1, "invalid user data");
 			luaL_argcheck(state, *t != NULL, 1, "invalid user data");
@@ -1011,7 +1011,7 @@ namespace LUAAA_NS
 		LuaClass(lua_State * state, const std::string& name, const luaL_Reg * functions = nullptr)
 			: m_state(state)
 		{
-			luaL_argcheck(state, (klassName.empty() || klassName == name), 1, (std::string("C++ class `") + typeid(TCLASS).name() + "` bind to conflict lua name `" + name + "`, origin name: " + klassName).c_str());
+			luaL_argcheck(state, (klassName.empty() || klassName == name), 1, (std::string("C++ class `") /*+ typeid(TCLASS).name()*/ + "` bind to conflict lua name `" + name + "`, origin name: " + klassName).c_str());
 
 			klassName = name;
 
