@@ -39,9 +39,6 @@ inline void luaL_setfuncs(lua_State *L, const luaL_Reg *l, int nup) {
 #endif
 
 
-#include <string>
-#include <typeinfo>
-
 namespace LUAAA_NS
 {
 	template <typename>	struct LuaClass;
@@ -54,8 +51,8 @@ namespace LUAAA_NS
 	{
 		inline static T& get(lua_State * state, int idx)
 		{
-			luaL_argcheck(state, !LuaClass<T>::klassName.empty(), 1, (std::string("cpp class `") /*+ typeid(T).name()*/ + "` not export").c_str());
-			T ** t = (T**)luaL_checkudata(state, idx, LuaClass<T>::klassName.c_str());
+			luaL_argcheck(state, LuaClass<T>::klassName != nullptr, 1, "class not exported");
+			T ** t = (T**)luaL_checkudata(state, idx, LuaClass<T>::klassName);
 			luaL_argcheck(state, t != NULL, 1, "invalid user data");
 			luaL_argcheck(state, *t != NULL, 1, "invalid user data");
 			return (**t);
@@ -102,13 +99,13 @@ namespace LUAAA_NS
 		{
 			if (!LuaClass<T*>::klassName.empty())
 			{
-				T ** t = (T**)luaL_checkudata(state, -1, LuaClass<T*>::klassName.c_str());
+				T ** t = (T**)luaL_checkudata(state, -1, LuaClass<T*>::klassName);
 				luaL_argcheck(state, t != NULL, 1, "invalid user data");
 				return *t;
 			}
 			else if (!LuaClass<T>::klassName.empty())
 			{
-				T ** t = (T**)luaL_checkudata(state, -1, LuaClass<T>::klassName.c_str());
+				T ** t = (T**)luaL_checkudata(state, -1, LuaClass<T>::klassName);
 				luaL_argcheck(state, t != NULL, 1, "invalid user data");
 				luaL_argcheck(state, *t != NULL, 1, "invalid user data");
 				return *t;
@@ -237,8 +234,6 @@ namespace LUAAA_NS
 		}
 	};
 
-	
-
 	template<>
 	struct LuaStack<char *>
 	{
@@ -250,21 +245,6 @@ namespace LUAAA_NS
 		inline static void put(lua_State * L, const char * s)
 		{
 			LuaStack<const char *>::put(L, s);
-		}
-	};
-
-
-	template<>
-	struct LuaStack<std::string>
-	{
-		inline static std::string get(lua_State * L, int idx)
-		{
-			return LuaStack<const char *>::get(L, idx);
-		}
-
-		inline static void put(lua_State * L, const std::string& s)
-		{
-			LuaStack<const char *>::put(L, s.c_str());
 		}
 	};
 
@@ -550,457 +530,17 @@ namespace LUAAA_NS
 		{
 			(void)(state);
 			volatile int idx = sizeof...(ARGS); (void)(idx);
-			return new TCLASS((LuaStack<ARGS>::get(state, idx--))...);
+
+			auto ptr = lua_newuserdata(state, sizeof(TCLASS));
+
+			// Placement-new the object in to the Lua-allocated space
+			return new (ptr) TCLASS(LuaStack<ARGS>::get(state, idx--)...);
 		}
 	};
 }
 
-#include <array>
-#include <vector>
-#include <deque>
-#include <list>
-#include <forward_list>
-#include <set>
-#include <map>
-#include <unordered_set>
-#include <unordered_map>
-
 namespace LUAAA_NS
 {
-	// array
-	template<typename K, size_t N>
-	struct LuaStack<std::array<K, N>>
-	{
-		typedef std::array<K, N> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				int index = 0;
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx) && index < N)
-				{
-					result[index++] = LuaStack<typename Container::value_type>::get(L, idx + 2);
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// vector
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::vector<K, ARGS...>>
-	{
-		typedef std::vector<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.push_back(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// deque
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::deque<K, ARGS...>>
-	{
-		typedef std::deque<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.push_back(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// list
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::list<K, ARGS...>>
-	{
-		typedef std::list<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.push_back(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// forward_list
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::forward_list<K, ARGS...>>
-	{
-		typedef std::forward_list<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.push_back(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// set
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::set<K, ARGS...>>
-	{
-		typedef std::set<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.insert(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// multiset
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::multiset<K, ARGS...>>
-	{
-		typedef std::multiset<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.insert(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// unordered_set
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::unordered_set<K, ARGS...>>
-	{
-		typedef std::unordered_set<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.insert(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// unordered_multiset
-	template<typename K, typename ...ARGS>
-	struct LuaStack<std::unordered_multiset<K, ARGS...>>
-	{
-		typedef std::unordered_multiset<K, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result.insert(LuaStack<typename Container::value_type>::get(L, idx + 2));
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			int index = 1;
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::value_type>::put(L, *it);
-				lua_rawseti(L, -2, index++);
-			}
-		}
-	};
-
-	// map
-	template<typename K, typename V, typename ...ARGS>
-	struct LuaStack<std::map<K, V, ARGS...>>
-	{
-		typedef std::map<K, V, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result[LuaStack<typename Container::key_type>::get(L, idx + 1)] = LuaStack<typename Container::mapped_type>::get(L, idx + 2);
-					lua_pop(L, 1);	
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::key_type>::put(L, it->first);
-				LuaStack<typename Container::mapped_type>::put(L, it->second);
-				lua_rawset(L, -3);
-			}
-		}
-	};
-
-	// multimap
-	template<typename K, typename V, typename ...ARGS>
-	struct LuaStack<std::multimap<K, V, ARGS...>>
-	{
-		typedef std::multimap<K, V, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result[LuaStack<typename Container::key_type>::get(L, idx + 1)] = LuaStack<typename Container::mapped_type>::get(L, idx + 2);
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::key_type>::put(L, it->first);
-				LuaStack<typename Container::mapped_type>::put(L, it->second);
-				lua_rawset(L, -3);
-			}
-		}
-	};
-
-	// unordered_map
-	template<typename K, typename V, typename ...ARGS>
-	struct LuaStack<std::unordered_map<K, V, ARGS...>>
-	{
-		typedef std::unordered_map<K, V, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result[LuaStack<typename Container::key_type>::get(L, idx + 1)] = LuaStack<typename Container::mapped_type>::get(L, idx + 2);
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::key_type>::put(L, it->first);
-				LuaStack<typename Container::mapped_type>::put(L, it->second);
-				lua_rawset(L, -3);
-			}
-		}
-	};
-
-	// unordered_multimap
-	template<typename K, typename V, typename ...ARGS>
-	struct LuaStack<std::unordered_multimap<K, V, ARGS...>>
-	{
-		typedef std::unordered_multimap<K, V, ARGS...> Container;
-		inline static Container get(lua_State * L, int idx)
-		{
-			Container result;
-			luaL_argcheck(L, lua_istable(L, idx), 1, "required table not found on stack.");
-			if (lua_istable(L, idx))
-			{
-				lua_pushnil(L);
-				while (0 != lua_next(L, idx))
-				{
-					result[LuaStack<typename Container::key_type>::get(L, idx + 1)] = LuaStack<typename Container::mapped_type>::get(L, idx + 2);
-					lua_pop(L, 1);
-				}
-				lua_pop(L, 0);
-			}
-			return result;
-		}
-		inline static void put(lua_State * L, const Container& s)
-		{
-			lua_newtable(L);
-			for (auto it = s.begin(); it != s.end(); ++it)
-			{
-				LuaStack<typename Container::key_type>::put(L, it->first);
-				LuaStack<typename Container::mapped_type>::put(L, it->second);
-				lua_rawset(L, -3);
-			}
-		}
-	};
-
-
 	//========================================================
 	// export class
 	//========================================================
@@ -1008,10 +548,10 @@ namespace LUAAA_NS
 	struct LuaClass
 	{
 	public:
-		LuaClass(lua_State * state, const std::string& name, const luaL_Reg * functions = nullptr)
+		LuaClass(lua_State * state, const char* name, const luaL_Reg * functions = nullptr)
 			: m_state(state)
 		{
-			luaL_argcheck(state, (klassName.empty() || klassName == name), 1, (std::string("C++ class `") /*+ typeid(TCLASS).name()*/ + "` bind to conflict lua name `" + name + "`, origin name: " + klassName).c_str());
+			luaL_argcheck(state, (klassName == nullptr || klassName == name), 1, "bind conflict");
 
 			klassName = name;
 
@@ -1019,10 +559,10 @@ namespace LUAAA_NS
 			{
 				struct HelperClass {
 					static int f__gc(lua_State* state) {
-						TCLASS ** objPtr = (TCLASS**)luaL_checkudata(state, -1, LuaClass<TCLASS>::klassName.c_str());
+						TCLASS ** objPtr = (TCLASS**)luaL_checkudata(state, -1, LuaClass<TCLASS>::klassName);
 						if (objPtr)
 						{
-							delete *objPtr;
+							(*objPtr)->~TCLASS();
 						}
 						return 0;
 					}
@@ -1033,7 +573,7 @@ namespace LUAAA_NS
 					{ nullptr, nullptr }
 				};
 
-				luaL_newmetatable(state, klassName.c_str());
+				luaL_newmetatable(state, klassName);
 				lua_pushvalue(state, -1);
 				lua_setfield(state, -2, "__index");
 				luaL_setfuncs(state, destructor, 0);
@@ -1060,16 +600,16 @@ namespace LUAAA_NS
 						if (objPtr)
 						{
 							*objPtr = obj;
-							luaL_getmetatable(state, LuaClass<TCLASS>::klassName.c_str());
+							luaL_getmetatable(state, LuaClass<TCLASS>::klassName);
 							lua_setmetatable(state, -2);
 							return 1;
 						}
 						else
 						{
-							delete obj;
+							obj->~TCLASS();
 						}
 					}
-					lua_pushnil(state);			
+					lua_pushnil(state);
 					return 1;
 				}
 
@@ -1080,9 +620,9 @@ namespace LUAAA_NS
 #if USE_NEW_MODULE_REGISTRY
 			lua_newtable(m_state);
 			luaL_setfuncs(m_state, constructor, 0);
-			lua_setglobal(m_state, klassName.c_str());
+			lua_setglobal(m_state, klassName);
 #else
-			luaL_register(m_state, klassName.c_str(), constructor);	//luaL_openlib(state, klassName.c_str(), constructor, 0);
+			luaL_register(m_state, klassName, constructor);	//luaL_openlib(state, klassName, constructor, 0);
 			lua_pop(m_state, 1);
 #endif
 			return (*this);
@@ -1097,11 +637,11 @@ namespace LUAAA_NS
 		template<typename F>
 		inline LuaClass<TCLASS>& fun(const char * name, F f)
 		{
-			luaL_getmetatable(m_state, klassName.c_str());
+			luaL_getmetatable(m_state, klassName);
 			lua_pushstring(m_state, name);
 
 			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
-			luaL_argcheck(m_state, funPtr != nullptr, 1, (std::string("faild to alloc mem to store function `") + name + "`").c_str());
+			luaL_argcheck(m_state, funPtr != nullptr, 1, "failed to alloc mem to store function");
 			*funPtr = f;
 			lua_pushcclosure(m_state, MemberFunctionCaller(f), 1);
 			lua_settable(m_state, -3);
@@ -1111,7 +651,7 @@ namespace LUAAA_NS
 
 		inline LuaClass<TCLASS>& fun(const char * name, lua_CFunction f)
 		{
-			luaL_getmetatable(m_state, klassName.c_str());
+			luaL_getmetatable(m_state, klassName);
 			lua_pushstring(m_state, name);
 			lua_pushcclosure(m_state, f, 0);
 			lua_settable(m_state, -3);
@@ -1119,16 +659,10 @@ namespace LUAAA_NS
 			return (*this);
 		}
 
-		template <typename F>
-		inline LuaClass<TCLASS>& fun(const std::string& name, F f)
-		{
-			return fun(name.c_str(), f);
-		}
-
 		template <typename V>
 		inline LuaClass<TCLASS>& def(const char * name, const V& val)
 		{
-			luaL_getmetatable(m_state, klassName.c_str());
+			luaL_getmetatable(m_state, klassName);
 			lua_pushstring(m_state, name);
 			LuaStack<V>::put(m_state, val);
 			lua_settable(m_state, -3);
@@ -1139,7 +673,7 @@ namespace LUAAA_NS
 		// disable cast from "const char [#]" to "char (*)[#]"
 		inline LuaClass<TCLASS>& def(const char * name, const char * str)
 		{
-			luaL_getmetatable(m_state, klassName.c_str());
+			luaL_getmetatable(m_state, klassName);
 			lua_pushstring(m_state, name);
 			LuaStack<decltype(str)>::put(m_state, str);
 			lua_settable(m_state, -3);
@@ -1147,21 +681,15 @@ namespace LUAAA_NS
 			return (*this);
 		}
 
-		template <typename V>
-		inline LuaClass<TCLASS>& def(const std::string& name, const V& val)
-		{
-			return def(name.c_str(), val);
-		}
-
 	private:
 		lua_State *	m_state;
 
 	private:
 		template<typename> friend struct LuaStack;
-		static std::string klassName;
+		static const char* klassName;
 	};
 
-	template <typename TCLASS> std::string LuaClass<TCLASS>::klassName;
+	template <typename TCLASS> const char* LuaClass<TCLASS>::klassName = nullptr;
 
 
 	// -----------------------------------
@@ -1191,14 +719,14 @@ namespace LUAAA_NS
 			}
 
 			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
-			luaL_argcheck(m_state, funPtr != nullptr, 1, (std::string("faild to alloc mem to store function `") + name + "`").c_str());
+			luaL_argcheck(m_state, funPtr != nullptr, 1, "failed to alloc mem to store function");
 			*funPtr = f;
 
 			luaL_setfuncs(m_state, regtab, 1);
 			lua_setglobal(m_state, m_moduleName.c_str());
 #else
 			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
-			luaL_argcheck(m_state, funPtr != nullptr, 1, (std::string("faild to alloc mem to store function `") + name + "`").c_str());
+			luaL_argcheck(m_state, funPtr != nullptr, 1, "failed to alloc mem to store function");
 			*funPtr = f;
 
 			luaL_openlib(m_state, m_moduleName.c_str(), regtab, 1);
