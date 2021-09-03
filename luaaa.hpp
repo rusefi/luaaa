@@ -628,12 +628,6 @@ namespace LUAAA_NS
 			return (*this);
 		}
 
-		template<typename ...ARGS>
-		inline LuaClass<TCLASS>& ctor(const std::string& name)
-		{
-			return ctor<ARGS...>(name.c_str());
-		}
-
 		template<typename F>
 		inline LuaClass<TCLASS>& fun(const char * name, F f)
 		{
@@ -698,9 +692,9 @@ namespace LUAAA_NS
 	struct LuaModule
 	{
 	public:
-		LuaModule(lua_State * state, const std::string& name = "_G")
+		LuaModule(lua_State * state, const char* name = "_G")
 			: m_state(state)
-			, m_moduleName(name.empty() ? "_G" : name)
+			, m_moduleName(name)
 		{
 		}
 
@@ -711,7 +705,7 @@ namespace LUAAA_NS
 			luaL_Reg regtab[] = { { name, NonMemberFunctionCaller(f) },{ nullptr, nullptr } };
 
 #if USE_NEW_MODULE_REGISTRY
-			lua_getglobal(m_state, m_moduleName.c_str());
+			lua_getglobal(m_state, m_moduleName);
 			if (lua_isnil(m_state, -1)) 
 			{
 				lua_pop(m_state, 1);
@@ -723,13 +717,13 @@ namespace LUAAA_NS
 			*funPtr = f;
 
 			luaL_setfuncs(m_state, regtab, 1);
-			lua_setglobal(m_state, m_moduleName.c_str());
+			lua_setglobal(m_state, m_moduleName);
 #else
 			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
 			luaL_argcheck(m_state, funPtr != nullptr, 1, "failed to alloc mem to store function");
 			*funPtr = f;
 
-			luaL_openlib(m_state, m_moduleName.c_str(), regtab, 1);
+			luaL_openlib(m_state, m_moduleName, regtab, 1);
 #endif
 
 			return (*this);
@@ -739,16 +733,16 @@ namespace LUAAA_NS
 		{
 			luaL_Reg regtab[] = { { name, f },{ nullptr, nullptr } };
 #if USE_NEW_MODULE_REGISTRY
-			lua_getglobal(m_state, m_moduleName.c_str());
+			lua_getglobal(m_state, m_moduleName);
 			if (lua_isnil(m_state, -1))
 			{
 				lua_pop(m_state, 1);
 				lua_newtable(m_state);
 			}
 			luaL_setfuncs(m_state, regtab, 0);
-			lua_setglobal(m_state, m_moduleName.c_str());
+			lua_setglobal(m_state, m_moduleName);
 #else
-			luaL_openlib(m_state, m_moduleName.c_str(), regtab, 0);
+			luaL_openlib(m_state, m_moduleName, regtab, 0);
 #endif
 			return (*this);
 		}
@@ -757,7 +751,7 @@ namespace LUAAA_NS
 		inline LuaModule& def(const char * name, const V& val)
 		{
 #if USE_NEW_MODULE_REGISTRY
-			lua_getglobal(m_state, m_moduleName.c_str());
+			lua_getglobal(m_state, m_moduleName);
 			if (lua_isnil(m_state, -1))
 			{
 				lua_pop(m_state, 1);
@@ -765,10 +759,10 @@ namespace LUAAA_NS
 			}
 			LuaStack<V>::put(m_state, val);
 			lua_setfield(m_state, -2, name);
-			lua_setglobal(m_state, m_moduleName.c_str());
+			lua_setglobal(m_state, m_moduleName);
 #else
 			luaL_Reg regtab = { nullptr, nullptr };
-			luaL_openlib(m_state, m_moduleName.c_str(), &regtab, 0);
+			luaL_openlib(m_state, m_moduleName, &regtab, 0);
 			LuaStack<V>::put(m_state, val);
 			lua_setfield(m_state, -2, name);
 #endif
@@ -780,7 +774,7 @@ namespace LUAAA_NS
 		{
 			
 #if USE_NEW_MODULE_REGISTRY
-			lua_getglobal(m_state, m_moduleName.c_str());
+			lua_getglobal(m_state, m_moduleName);
 			if (lua_isnil(m_state, -1))
 			{
 				lua_pop(m_state, 1);
@@ -788,25 +782,19 @@ namespace LUAAA_NS
 			}
 			LuaStack<decltype(str)>::put(m_state, str);
 			lua_setfield(m_state, -2, name);
-			lua_setglobal(m_state, m_moduleName.c_str());
+			lua_setglobal(m_state, m_moduleName);
 #else
 			luaL_Reg regtab = { nullptr, nullptr };
-			luaL_openlib(m_state, m_moduleName.c_str(), &regtab, 0);
+			luaL_openlib(m_state, m_moduleName, &regtab, 0);
 			LuaStack<decltype(str)>::put(m_state, str);
 			lua_setfield(m_state, -2, name);
 #endif
 			return (*this);
 		}
 
-		template <typename V>
-		inline LuaModule& def(const std::string& name, const V& val)
-		{
-			return def(name.c_str(), val);
-		}
-
 	private:
 		lua_State *	m_state;
-		std::string m_moduleName;
+		const char* m_moduleName;
 	};
 
 }
