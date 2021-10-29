@@ -631,9 +631,10 @@ namespace LUAAA_NS
     {
         static TCLASS * Invoke(lua_State * state)
         {
-            (void)(state);
+            auto ptr = lua_newuserdata(state, sizeof(TCLASS));
+
             int idx = 0; (void)(idx);
-            return new TCLASS(stackOperatorCaller(state, LuaStack<ARGS>::get, sizeof...(ARGS), 0, &idx)...);
+            return new (ptr) TCLASS(stackOperatorCaller(state, LuaStack<ARGS>::get, sizeof...(ARGS), 0, &idx)...);
         }
     };
 
@@ -643,7 +644,7 @@ namespace LUAAA_NS
     template<typename TCLASS, bool = std::is_destructible<TCLASS>::value>
     struct DestructorCaller {
         static void Invoke(TCLASS * obj) {
-            delete obj;
+			obj->~TCLASS();
         }
     };
 
@@ -666,12 +667,12 @@ namespace LUAAA_NS
 			: m_state(state)
 		{
             assert(state != nullptr);
-            assert(klassName == nullptr);
+            //assert(klassName == nullptr);
 
 #ifndef LUAAA_WITHOUT_CPP_STDLIB
 			luaL_argcheck(state, (klassName == nullptr), 1, (std::string("C++ class `") + RTTI_CLASS_NAME(TCLASS) + "` bind to conflict lua name `" + name + "`, origin name: " + klassName).c_str());
 #else
-            luaL_argcheck(state, (klassName == nullptr), 1, "C++ class bind to conflict lua class name");
+            //luaL_argcheck(state, (klassName == nullptr), 1, "C++ class bind to conflict lua class name");
 #endif
 
             struct HelperClass {
