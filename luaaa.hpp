@@ -688,6 +688,7 @@ namespace LUAAA_NS
 		template<std::size_t ...Ns>
 		static TCLASS * InvokeImpl(lua_State * state, void * mem, indices<Ns...>)
         {
+			(void)state;
 			return new(mem) TCLASS(LuaStack<ARGS>::get(state, Ns + 1)...);
         }
     };
@@ -720,8 +721,8 @@ namespace LUAAA_NS
 		LuaClass(lua_State * state, const char * name, const luaL_Reg * functions = nullptr)
 			: m_state(state)
 		{
-            assert(state != nullptr);
-            assert(klassName == nullptr);
+            //assert(state != nullptr);
+            //assert(klassName == nullptr);
 
 #ifndef LUAAA_WITHOUT_CPP_STDLIB
 			luaL_argcheck(state, (klassName == nullptr), 1, (std::string("C++ class `") + RTTI_CLASS_NAME(TCLASS) + "` bind to conflict lua name `" + name + "`, origin name: " + klassName).c_str());
