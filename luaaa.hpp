@@ -47,10 +47,10 @@ inline void luaL_setfuncs(lua_State *L, const luaL_Reg *l, int nup) {
 
 #if defined(_MSC_VER)
 #   define RTTI_CLASS_NAME(a) typeid(a).name() //vc always has this operator even if RTTI was disabled.
-#elif __GXX_RTTI
-#   define RTTI_CLASS_NAME(a) typeid(a).name()
-#elif _HAS_STATIC_RTTI
-#   define RTTI_CLASS_NAME(a) typeid(a).name()
+//#elif __GXX_RTTI
+//#   define RTTI_CLASS_NAME(a) typeid(a).name()
+//#elif _HAS_STATIC_RTTI
+//#   define RTTI_CLASS_NAME(a) typeid(a).name()
 #else
 #   define RTTI_CLASS_NAME(a) "?"
 #endif
