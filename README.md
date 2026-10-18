@@ -19,6 +19,10 @@ feel free to report bugs.
 * no wrapper codes.
 * works with lua from 5.1 to 5.4.
 
+On Lua 5.4, binding userdata is allocated without user-value slots to reduce
+heap usage. Metatables still provide type checks and garbage-collection
+finalizers. Older Lua versions use their existing userdata allocation API.
+
 ## Quick Start
 
 export a class to lua:

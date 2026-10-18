@@ -91,6 +91,16 @@ inline void LUAAA_DUMP(lua_State * state, const char * name = "") {
 
 namespace LUAAA_NS
 {
+    // Binding userdata stores C++ payloads only, without Lua user values.
+    // Metatables still provide type checks and __gc finalizers.
+    inline void* newUserdata(lua_State* state, size_t size) {
+#if LUA_VERSION_NUM >= 504
+        return lua_newuserdatauv(state, size, 0);
+#else
+        return lua_newuserdata(state, size);
+#endif
+    }
+
     //========================================================
     // Lua Class
     //========================================================
@@ -738,7 +748,7 @@ namespace LUAAA_NS
             };
 
             size_t strBufLen = strlen(name) + 1;
-            klassName = reinterpret_cast<char *>(lua_newuserdata(state, strBufLen + 1));
+            klassName = reinterpret_cast<char *>(newUserdata(state, strBufLen + 1));
             memcpy(klassName, name, strBufLen);
 
             klassName[strBufLen - 1] = '$';
@@ -784,7 +794,7 @@ namespace LUAAA_NS
                 }
 
 				static int f_new(lua_State* state) {
-                    TCLASS ** objPtr = (TCLASS **)lua_newuserdata(state, sizeof(TCLASS*) + sizeof(TCLASS));
+                    TCLASS ** objPtr = (TCLASS **)newUserdata(state, sizeof(TCLASS*) + sizeof(TCLASS));
                     if (objPtr)
                     {
                         TCLASS * obj = PlacementConstructorCaller<TCLASS, ARGS...>::Invoke(state, (void*)(objPtr + 1));
@@ -838,7 +848,7 @@ namespace LUAAA_NS
                         auto obj = LuaInvoke<TCLASS*, SPAWNERFTYPE, ARGS...>(state, spawner, 0);
                         if (obj)
                         {
-                            TCLASS ** objPtr = (TCLASS**)lua_newuserdata(state, sizeof(TCLASS*));
+                            TCLASS ** objPtr = (TCLASS**)newUserdata(state, sizeof(TCLASS*));
                             if (objPtr)
                             {
                                 *objPtr = obj;
@@ -872,7 +882,7 @@ namespace LUAAA_NS
             }
 #endif
 
-            SPAWNERFTYPE * spawnerPtr = (SPAWNERFTYPE*)lua_newuserdata(m_state, sizeof(SPAWNERFTYPE));
+            SPAWNERFTYPE * spawnerPtr = (SPAWNERFTYPE*)newUserdata(m_state, sizeof(SPAWNERFTYPE));
 #   ifndef LUAAA_WITHOUT_CPP_STDLIB
             luaL_argcheck(m_state, spawnerPtr != nullptr, 1, (std::string("faild to alloc mem to store spawner for ctor `") + name + "`").c_str());
 #   else
@@ -921,7 +931,7 @@ namespace LUAAA_NS
                         auto obj = LuaInvoke<TCLASS*, SPAWNERFTYPE, ARGS...>(state, spawner, 0);
                         if (obj)
                         {
-                            TCLASS ** objPtr = (TCLASS**)lua_newuserdata(state, sizeof(TCLASS*));
+                            TCLASS ** objPtr = (TCLASS**)newUserdata(state, sizeof(TCLASS*));
                             if (objPtr)
                             {
                                 *objPtr = obj;
@@ -931,7 +941,7 @@ namespace LUAAA_NS
                                
                                 luaL_getmetatable(state, LuaClass<TCLASS>::klassName);
 
-                                DELETERFTYPE * deleterPtr = (DELETERFTYPE*)lua_newuserdata(state, sizeof(DELETERFTYPE));
+                                DELETERFTYPE * deleterPtr = (DELETERFTYPE*)newUserdata(state, sizeof(DELETERFTYPE));
 #   ifndef LUAAA_WITHOUT_CPP_STDLIB
                                 luaL_argcheck(state, deleterPtr != nullptr, 1, (std::string("faild to alloc mem to store deleter for ctor meta table `") + LuaClass<TCLASS>::klassName + "`").c_str());
 #   else
@@ -967,7 +977,7 @@ namespace LUAAA_NS
             }
 #endif
 
-            SPAWNERFTYPE * spawnerPtr = (SPAWNERFTYPE*)lua_newuserdata(m_state, sizeof(SPAWNERFTYPE));
+            SPAWNERFTYPE * spawnerPtr = (SPAWNERFTYPE*)newUserdata(m_state, sizeof(SPAWNERFTYPE));
 #   ifndef LUAAA_WITHOUT_CPP_STDLIB
             luaL_argcheck(m_state, spawnerPtr != nullptr, 1, (std::string("faild to alloc mem to store spawner for ctor `") + name + "`").c_str());
 #   else
@@ -975,7 +985,7 @@ namespace LUAAA_NS
 #   endif
             *spawnerPtr = spawner;
 
-            DELETERFTYPE * deleterPtr = (DELETERFTYPE*)lua_newuserdata(m_state, sizeof(DELETERFTYPE));
+            DELETERFTYPE * deleterPtr = (DELETERFTYPE*)newUserdata(m_state, sizeof(DELETERFTYPE));
 #   ifndef LUAAA_WITHOUT_CPP_STDLIB
             luaL_argcheck(m_state, deleterPtr != nullptr, 1, (std::string("faild to alloc mem to store deleter for ctor `") + name + "`").c_str());
 #   else
@@ -1009,7 +1019,7 @@ namespace LUAAA_NS
                         auto obj = LuaInvoke<TCLASS*, SPAWNERFTYPE, ARGS...>(state, spawner, 0);
                         if (obj)
                         {
-                            TCLASS ** objPtr = (TCLASS**)lua_newuserdata(state, sizeof(TCLASS*));
+                            TCLASS ** objPtr = (TCLASS**)newUserdata(state, sizeof(TCLASS*));
                             if (objPtr)
                             {
                                 *objPtr = obj;
@@ -1042,7 +1052,7 @@ namespace LUAAA_NS
                 lua_newtable(m_state);
             }
 #endif
-            SPAWNERFTYPE * spawnerPtr = (SPAWNERFTYPE*)lua_newuserdata(m_state, sizeof(SPAWNERFTYPE));
+            SPAWNERFTYPE * spawnerPtr = (SPAWNERFTYPE*)newUserdata(m_state, sizeof(SPAWNERFTYPE));
 #ifndef LUAAA_WITHOUT_CPP_STDLIB
             luaL_argcheck(m_state, spawnerPtr != nullptr, 1, (std::string("faild to alloc mem to store spawner for ctor `") + name + "`").c_str());
 #else
@@ -1090,7 +1100,7 @@ namespace LUAAA_NS
 			luaL_getmetatable(m_state, klassName);
 			lua_pushstring(m_state, name);
 
-			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
+			F * funPtr = (F*)newUserdata(m_state, sizeof(F));
 #ifndef LUAAA_WITHOUT_CPP_STDLIB
 			luaL_argcheck(m_state, funPtr != nullptr, 1, (std::string("faild to alloc mem to store function `") + name + "`").c_str());
 #else
@@ -1172,7 +1182,7 @@ namespace LUAAA_NS
             : m_state(state)
         {
             size_t strBufLen = strlen(name) + 1;
-            m_moduleName = reinterpret_cast<char *>(lua_newuserdata(state, strBufLen));
+            m_moduleName = reinterpret_cast<char *>(newUserdata(state, strBufLen));
             memcpy(m_moduleName, name, strBufLen);
         }
 
@@ -1196,7 +1206,7 @@ namespace LUAAA_NS
 				lua_newtable(m_state);
 			}
 
-			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
+			F * funPtr = (F*)newUserdata(m_state, sizeof(F));
 #   ifndef LUAAA_WITHOUT_CPP_STDLIB
 			luaL_argcheck(m_state, funPtr != nullptr, 1, (std::string("faild to alloc mem to store function `") + name + "`").c_str());
 #   else
@@ -1207,7 +1217,7 @@ namespace LUAAA_NS
 			luaL_setfuncs(m_state, regtab, 1);
 			lua_setglobal(m_state, m_moduleName);
 #else
-			F * funPtr = (F*)lua_newuserdata(m_state, sizeof(F));
+			F * funPtr = (F*)newUserdata(m_state, sizeof(F));
 #   ifndef LUAAA_WITHOUT_CPP_STDLIB
 			luaL_argcheck(m_state, funPtr != nullptr, 1, (std::string("faild to alloc mem to store function `") + name + "`").c_str());
 #   else
