@@ -742,21 +742,38 @@ namespace LUAAA_NS
 
             struct HelperClass {
                 static int f__clsgc(lua_State*) {
+                    // klassName is static per C++ type, but its bytes belong to
+                    // this VM. Clear it when the name userdata is finalized so
+                    // the next VM can bind this class again. This cleans up
+                    // binding metadata; ctor() registers instance destructors.
                     LuaClass<TCLASS>::klassName = nullptr;
                     return 0;
                 }
             };
 
             size_t strBufLen = strlen(name) + 1;
-            klassName = reinterpret_cast<char *>(newUserdata(state, strBufLen + 1));
-            memcpy(klassName, name, strBufLen);
+            // Keep the name private while constructing its cleanup metadata:
+            // creating the metatable or installing __gc can raise a Lua error.
+            char * newClassName = reinterpret_cast<char *>(newUserdata(state, strBufLen + 1));
+            memcpy(newClassName, name, strBufLen);
 
-            klassName[strBufLen - 1] = '$';
-            klassName[strBufLen] = 0;
-            luaL_newmetatable(state, klassName);
+            // The separate "Name$" metatable finalizes the name userdata;
+            // the "Name" metatable constructed below describes class instances.
+            newClassName[strBufLen - 1] = '$';
+            newClassName[strBufLen] = 0;
+            luaL_newmetatable(state, newClassName);
             luaL_Reg destructor[] = { { "__gc", HelperClass::f__clsgc },{ nullptr, nullptr } };
             luaL_setfuncs(state, destructor, 0);
             lua_setmetatable(state, -2);
+
+            // [tag:lua_protected_setup] Publish only after __gc is attached.
+            // A caller recovering from OOM via lua_pcall can close this partial
+            // VM. Before this point, no finalizer would clear an early-published
+            // pointer: klassName would dangle and the next VM would fail the
+            // name-conflict check above. From here on, teardown can clear it
+            // even if later registration fails. In rusEFI this is exercised by
+            // LuaBasic.SetupFailureAtEachAllocationAndRetry.
+            klassName = newClassName;
            
             klassName[strBufLen - 1] = 0;
             luaL_newmetatable(state, klassName);
