@@ -235,7 +235,7 @@ namespace LUAAA_NS
 
 		inline static void put(lua_State * L, const double & t)
 		{
-			lua_pushnumber(L, t);
+			lua_pushnumber(L, static_cast<lua_Number>(t));
 		}
 	};
 
